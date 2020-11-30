@@ -3,7 +3,7 @@
    1. Server --> New client = current game state (GameInProcess = true/false, all board cards, who's turn)
 
 1. Bet
-   1. Client --> Server = Session cookie, bet amount
+   1. Client --> Server =  bet amount
    1. Server --> Client = 'Bet accepted' // 'Cannot bet, game in progress' // 'You already placed bet'
 
 1. Game start
