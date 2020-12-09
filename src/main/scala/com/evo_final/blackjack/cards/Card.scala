@@ -1,4 +1,4 @@
-package com.evo_final.blackjack.adt
+package com.evo_final.blackjack.cards
 
 final case class Card(
   rank: Rank,
