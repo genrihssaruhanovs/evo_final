@@ -1,32 +1,30 @@
 package com.evo_final.blackjack.game_logic
 
-import com.evo_final.blackjack.ErrorMessage
 import com.evo_final.blackjack.cards.{Card, Deck}
 
+import scala.annotation.tailrec
 import scala.util.Random
 
 case class GameDeck(cards: List[Card]) {
   def shuffle: GameDeck = GameDeck(Random.shuffle(cards))
-  private def serve: Either[ErrorMessage, (Card, GameDeck)] = {
-    cards match {
-      case x :: xs => Right((x, GameDeck(xs)))
-      case Nil     => Left("Not enough cards in the deck")
-    }
+
+  private def serve: (Card, GameDeck) = {
+    (cards.head, GameDeck(cards.tail))
   }
 
-  def serveN(n: Int): Either[ErrorMessage, (List[Card], GameDeck)] = {
+  def serveN(n: Int): (List[Card], GameDeck) = {
 
+    @tailrec
     def getServed(
       n: Int,
-      served: List[Card],
+      servedCards: List[Card],
       deck: GameDeck
-    ): Either[ErrorMessage, (List[Card], GameDeck)] = {
-      if (served.size < n) {
-        deck.serve.flatMap {
-          case (card, newDeck) => getServed(n, card :: served, newDeck)
-        }
+    ): (List[Card], GameDeck) = {
+      if (servedCards.size < n) {
+        val (card, newDeck) = deck.serve
+        getServed(n, card :: servedCards, newDeck)
       } else {
-        Right((served, deck))
+        (servedCards, deck)
       }
     }
 

@@ -2,81 +2,52 @@ package com.evo_final.blackjack.game_logic
 
 import com.evo_final.blackjack._
 
+import scala.annotation.tailrec
+
 case class Round(
   players: Map[PlayerId, Player],
   dealer: Dealer,
-  deck: GameDeck,
-  inProcess: Boolean
+  deck: GameDeck
 ) {
+
   def calculateWinnings: Map[PlayerId, Amount] = {
     players.map {
       case (id, player) => id -> player.evaluate(dealer.hand)
     }
   }
 
-  def addPlayer(playerId: PlayerId, roundInProgress: Boolean): Round = {
-    val newPlayer =
-      Player.create(!roundInProgress) // if round in progress - player not in the game this round
-    copy(players = players + (playerId -> newPlayer))
-  }
-
-  def prepare(playerIds: List[PlayerId]): Round = {
-    Round(
-      setPlayers(playerIds),
-      Dealer(DealerHand(List())),
-      GameDeck.empty,
-      inProcess = false
-    )
-  }
-
-//  def start: Round = {
-//    def servePlayers(unservedPlayers: List[(PlayerId, Player)], servedPlayers: Map[PlayerId, Player], currentDeck: GameDeck): Map[PlayerId, Player] = {
-//      unservedPlayers match {
-//        case x :: xs =>
-//          val (id, player) = x
-//          for {
-//            served <- player.initialServe(currentDeck)
-//            (servedPlayer, newDeck) = served
-//            served
-//          }
-//
-//        case Nil => servedPlayers
-//      }
-//    }
-//    for {
-//      playerM <- playersь
-//      (id, player)
-//    }
-//    val servedPlayers
-//  }
-
-//    Round(
-//      resetPlayers,
-//      Dealer(DealerHand(List())),
-//      GameDeck.of(4),
-//      inProcess = true
-//
-  def setPlayers(playerIds: List[PlayerId]): Map[PlayerId, Player] =
-    playerIds.map(id => id -> Player.create(true)).toMap
-
-  def placeBet(id: PlayerId, bet: Amount): Either[ErrorMessage, Round] =
+  def runDecision(id: PlayerId, decision: PlayerDecision): Option[Round] =
     for {
-      player        <- findPlayer(id)
-      updatedPlayer <- player.placeBet(bet)
-    } yield copy(players = players + (id -> updatedPlayer))
-
-  def doAction(id: PlayerId, decision: PlayerDecision): Either[ErrorMessage, Round] =
-    for {
-      player <- findPlayer(id)
+      player <- players.get(id)
       result <- player.makeDecision(decision, deck)
       (updatedPlayer, newDeck) = result
     } yield copy(players = players + (id -> updatedPlayer), deck = newDeck)
-
-  def findPlayer(id: PlayerId): Either[ErrorMessage, Player] =
-    players.get(id) match {
-      case Some(player) => Right(player)
-      case None         => Left("Player does not exist")
-    }
 }
 
-object Round {}
+object Round {
+
+  def start(playerBets: Map[PlayerId, Amount]): Round = {
+    @tailrec
+    def servePlayers(
+      unservedPlayers: List[(PlayerId, Amount)],
+      servedPlayers: Map[PlayerId, Player],
+      currentDeck: GameDeck
+    ): (Map[PlayerId, Player], GameDeck) = {
+      unservedPlayers match {
+        case x :: xs =>
+          val (id, bet) = x
+          val (servedPlayer, newDeck) = Player.of(currentDeck, bet)
+          servePlayers(xs, servedPlayers + (id -> servedPlayer), newDeck)
+        case Nil => (servedPlayers, currentDeck)
+      }
+    }
+
+    val deckCount = Math.max(playerBets.size / 2, 4)
+    val deck = GameDeck.of(deckCount)
+    val (servedPlayers, currentDeck) = servePlayers(playerBets.toList, Map.empty, deck)
+    val (servedDealer, resultDeck) = Dealer.of(currentDeck)
+
+    Round(servedPlayers, servedDealer, resultDeck)
+  }
+
+}

@@ -19,18 +19,15 @@ class GameDeckSpec extends AnyFreeSpec with Matchers {
 
     "serve one card" in {
       val deck = GameDeck.of(4)
-      val served = deck.serveN(1)
+      val (servedCards, resultDeck) = deck.serveN(1)
 
-      val (servedCards, resultDeck) = served.getOrElse(List(), GameDeck.empty)
       resultDeck.cards.size shouldEqual deck.cards.size - 1
       servedCards should have size 1
     }
 
     "serve 2 cards" in {
       val deck = GameDeck.of(4)
-      val served = deck.serveN(2)
-
-      val (servedCards, resultDeck) = served.getOrElse(List(), GameDeck.empty)
+      val (servedCards, resultDeck) = deck.serveN(2)
 
       resultDeck.cards should have size deck.cards.size - 2
       servedCards should have size 2

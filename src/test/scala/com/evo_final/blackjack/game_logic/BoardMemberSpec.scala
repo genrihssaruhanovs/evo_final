@@ -25,8 +25,7 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
     )
 
     "Be initially served with one card" in {
-      val served = Dealer(DealerHand.empty).initialServe(fakeDeck)
-      val (servedDealer, resultDeck) = served.getOrElse(Dealer(DealerHand.empty), GameDeck.empty)
+      val (servedDealer, resultDeck) = Dealer.of(fakeDeck)
 
       servedDealer.hand.cards should have size 1
       servedDealer.hand.cards shouldEqual List(Card(Queen, Hearts))
@@ -35,11 +34,9 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
     }
 
     "Take cards until exceeds score 17" in {
-      val served = Dealer(DealerHand.empty).initialServe(fakeDeck)
-      val (servedDealer, resultDeck) = served.getOrElse(Dealer(DealerHand.empty), GameDeck.empty)
+      val (servedDealer, resultDeck) = Dealer.of(fakeDeck)
 
-      val played = servedDealer.play(resultDeck)
-      val (playedDealer, playedDeck) = played.getOrElse(Dealer(DealerHand.empty), GameDeck.empty)
+      val (playedDealer, playedDeck) = servedDealer.play(resultDeck)
 
       playedDealer.hand.cards should have size 4
       playedDealer.hand.score shouldEqual 18
@@ -60,38 +57,28 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
       )
     )
 
-    val fakeDealer = Dealer(DealerHand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))))
-
-    "place bet only once" in {
-      val player = Player.create(true)
-      val placedBetPlayer = player.placeBet(500).getOrElse(Player.create(true))
-
-      placedBetPlayer.bet shouldEqual 500
-      placedBetPlayer.states should contain(BetPlaced)
-
-      val betPlacedAgain = placedBetPlayer.placeBet(500)
-      betPlacedAgain shouldEqual Left("Bet is already placed")
-    }
+    val fakeDealer = Dealer(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))))
 
     "evaluate hand correctly" in {
-      val player1 = Player(PlayerHand(List(Card(Ace, Hearts), Card(Queen, Hearts))), Set(), 500)
-      val player2 = Player(PlayerHand(List(Card(Ace, Hearts), Card(Three, Hearts))), Set(), 500)
+      val player1 = Player(Hand(List(Card(Ace, Hearts), Card(Queen, Hearts))), Set(), 500)
+      val player2 = Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts))), Set(), 500)
       val player3 =
-        Player(PlayerHand(List(Card(Ace, Hearts), Card(Three, Hearts), Card(Seven, Hearts))), Set(), 500)
-      val player4 = Player(PlayerHand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))), Set(), 500)
+        Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts), Card(Seven, Hearts))), Set(), 500)
+      val player4 = Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))), Set(), 500)
 
       player1.evaluate(fakeDealer.hand) shouldEqual 1250
       player2.evaluate(fakeDealer.hand) shouldEqual 0
       player3.evaluate(fakeDealer.hand) shouldEqual 1000
       player4.evaluate(fakeDealer.hand) shouldEqual 500
     }
+
     "Execute different actions" - {
-      val player = Player(PlayerHand(List(Card(Five, Hearts), Card(Four, Hearts))), Set(TurnNow), 500)
+      val player = Player(Hand(List(Card(Five, Hearts), Card(Four, Hearts))), Set(TurnNow), 500)
 
       "Execute stand action" in {
 
         val stood = player.makeDecision(Stand, fakeDeck)
-        val (stoodPlayer, stoodDeck) = stood.getOrElse(Player(PlayerHand.empty, Set(), 0), GameDeck.empty)
+        val (stoodPlayer, stoodDeck) = stood.getOrElse(Player(Hand.empty, Set(), 0), GameDeck.empty)
 
         stoodDeck.cards shouldEqual fakeDeck.cards
         stoodPlayer.states should contain(TurnDone)
@@ -102,7 +89,7 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
       "Execute hit action" in {
 
         val hit = player.makeDecision(Hit, fakeDeck)
-        val (hitPlayer, hitDeck) = hit.getOrElse(Player(PlayerHand.empty, Set(), 0), GameDeck.empty)
+        val (hitPlayer, hitDeck) = hit.getOrElse(Player(Hand.empty, Set(), 0), GameDeck.empty)
 
         hitDeck.cards shouldEqual fakeDeck.cards.tail
         hitPlayer.states should contain(TurnNow)
@@ -110,7 +97,7 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
         hitPlayer.hand.score shouldEqual 19
 
         val hit2 = hitPlayer.makeDecision(Hit, hitDeck)
-        val (hitPlayer2, hitDeck2) = hit2.getOrElse(Player(PlayerHand.empty, Set(), 0), GameDeck.empty)
+        val (hitPlayer2, hitDeck2) = hit2.getOrElse(Player(Hand.empty, Set(), 0), GameDeck.empty)
 
         hitDeck2.cards shouldEqual hitDeck.cards.tail
         hitPlayer2.states should contain(TurnDone)
@@ -121,7 +108,7 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
 
         val doubleDowned = player.makeDecision(DoubleDown, fakeDeck)
         val (doubleDownPlayer, doubleDownDeck) =
-          doubleDowned.getOrElse(Player(PlayerHand.empty, Set(), 0), GameDeck.empty)
+          doubleDowned.getOrElse(Player(Hand.empty, Set(), 0), GameDeck.empty)
 
         doubleDownDeck.cards shouldEqual fakeDeck.cards.tail
         doubleDownPlayer.states should contain(TurnDone)
@@ -134,7 +121,7 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
 
         val surrendered = player.makeDecision(Surrender, fakeDeck)
         val (surrenderedPlayer, surrenderedDeck) =
-          surrendered.getOrElse(Player(PlayerHand.empty, Set(), 0), GameDeck.empty)
+          surrendered.getOrElse(Player(Hand.empty, Set(), 0), GameDeck.empty)
 
         surrenderedDeck.cards shouldEqual fakeDeck.cards
         surrenderedPlayer.states should contain(TurnDone)
@@ -147,7 +134,7 @@ class BoardMemberSpec extends AnyFreeSpec with Matchers {
 
         val insured = player.makeDecision(Insurance, fakeDeck)
         val (insuredPlayer, insuredDeck) =
-          insured.getOrElse(Player(PlayerHand.empty, Set(), 0), GameDeck.empty)
+          insured.getOrElse(Player(Hand.empty, Set(), 0), GameDeck.empty)
 
         insuredDeck.cards shouldEqual fakeDeck.cards
         insuredPlayer.states should contain(TurnDone)

@@ -11,19 +11,19 @@ import com.evo_final.blackjack.game_logic.PlayerState.{
 }
 import com.evo_final.blackjack.{Amount, ErrorMessage}
 
-sealed trait BoardMember[H <: Hand[H]] {
-  def hand: Hand[H]
+import scala.annotation.tailrec
+
+sealed trait BoardMember {
+  def hand: Hand
 }
 
 case class Player(
-  hand: PlayerHand,
+  hand: Hand,
   states: Set[PlayerState],
   bet: Amount,
-) extends BoardMember[PlayerHand] {
+) extends BoardMember {
 
-  def reset: Player = Player.create(true)
-
-  def evaluate(dealerHand: DealerHand): Amount =
+  def evaluate(dealerHand: Hand): Amount =
     if (hand.isBlackJack && dealerHand.isBlackJack)
       if (states.contains(Insured)) bet * 2 else bet
     else if (hand.isBlackJack) bet * 2.5
@@ -33,84 +33,69 @@ case class Player(
     else if (hand.score > dealerHand.score) bet * 2
     else 0
 
-  def placeBet(bet: Amount): Either[ErrorMessage, Player] =
-    if (states.contains(BetPlaced)) Left("Bet is already placed")
-    else if (!states.contains(IsInGame)) Left("Cannot place bet - player not in game")
-    else Right(copy(states = states + BetPlaced, bet = bet))
-
-  def makeDecision(decision: PlayerDecision, deck: GameDeck): Either[ErrorMessage, (Player, GameDeck)] = {
-    if (states.contains(TurnDone)) Left("Turn already done")
-    else if (!states.contains(TurnNow)) Left("Now is not your turn")
+  def makeDecision(decision: PlayerDecision, deck: GameDeck): Option[(Player, GameDeck)] = {
+    if (states.contains(TurnDone)) None
+    else if (!states.contains(TurnNow)) None
     else {
       decision match {
         case Hit =>
-          for {
-            served <- deck.serveN(1)
-            (cards, newDeck) = served
-            newHand <- PlayerHand.of(hand.cards ++ cards)
-            newStates = if (newHand.score > 21) endTurn else states
-          } yield (copy(hand = newHand, states = newStates), newDeck)
+          val (newHand, newDeck) = hand.getServed(1, deck)
+          val newStates = if (newHand.score > 21) statesEndTurn else states
+          Some(copy(hand = newHand, states = newStates), newDeck)
 
-        case Stand => Right(copy(states = endTurn), deck)
+        case Stand => Some(copy(states = statesEndTurn), deck)
 
         case DoubleDown =>
-          for {
-            served <- deck.serveN(1)
-            (cards, newDeck) = served
-            newHand <- PlayerHand.of(hand.cards ++ cards)
-          } yield (copy(hand = newHand, states = endTurn, bet = bet * 2), newDeck)
+          val (newHand, newDeck) = hand.getServed(1, deck)
+          Some((copy(hand = newHand, states = statesEndTurn, bet = bet * 2), newDeck))
 
-        case Surrender => Right(copy(states = endTurn + Surrendered), deck)
+        case Surrender => Some(copy(states = statesEndTurn + Surrendered), deck)
 
         case Split => ???
 
-        case Insurance => Right(copy(states = endTurn + Insured), deck)
+        case Insurance => Some(copy(states = statesEndTurn + Insured), deck)
 
       }
     }
   }
 
-  def endTurn: Set[PlayerState] = states + TurnDone - TurnNow
+  def statesEndTurn: Set[PlayerState] = states + TurnDone - TurnNow
 
-  def initialServe(deck: GameDeck): Either[ErrorMessage, (Player, GameDeck)] = {
-    for {
-      served <- deck.serveN(2)
-      (cards, newDeck) = served
-      newHand <- PlayerHand.of(cards)
-    } yield (copy(hand = newHand), newDeck)
-  }
+//  def initialServe(deck: GameDeck): (Player, GameDeck) = {
+//    val (newHand, newDeck) = hand.getServed(2, deck)
+//    (copy(hand = newHand), newDeck)
+//  }
 
 }
 
 object Player {
-  def create(isInGame: Boolean): Player = {
-    val states: Set[PlayerState] = if (isInGame) Set(IsInGame) else Set()
-    Player(PlayerHand.empty, states, 0)
+  def of(deck: GameDeck, bet: Amount): (Player, GameDeck) = {
+    val (servedCards, newDeck) = deck.serveN(2)
+    (Player(Hand(servedCards), Set(), bet), newDeck)
   }
 }
 
-case class Dealer(hand: DealerHand) extends BoardMember[DealerHand] {
-  def play(deck: GameDeck): Either[ErrorMessage, (Dealer, GameDeck)] = {
-    def getCards(currentHand: DealerHand, deck: GameDeck): Either[ErrorMessage, (DealerHand, GameDeck)] = {
-      if (currentHand.score > 17) Right(currentHand, deck)
+case class Dealer(hand: Hand) extends BoardMember {
+  def play(deck: GameDeck): (Dealer, GameDeck) = {
+
+    @tailrec
+    def getCards(currentHand: Hand, deck: GameDeck): (Hand, GameDeck) = {
+      if (currentHand.score > 17) (currentHand, deck)
       else {
-        for {
-          served <- deck.serveN(1)
-          (card, newDeck) = served
-          newHand <- DealerHand.of(card ++ currentHand.cards)
-          result  <- getCards(newHand, newDeck)
-        } yield result
+        val (newHand, newDeck) = currentHand.getServed(1, deck)
+        getCards(newHand, newDeck)
       }
     }
 
-    getCards(hand, deck).map { case (newHand, newDeck) => (Dealer(newHand), newDeck) }
+    val (resultHand, resultDeck) = getCards(hand, deck)
+    (Dealer(resultHand), resultDeck)
 
   }
-  def initialServe(deck: GameDeck): Either[ErrorMessage, (Dealer, GameDeck)] = {
-    for {
-      served <- deck.serveN(1)
-      (card, newDeck) = served
-      newHand <- DealerHand.of(card ++ hand.cards)
-    } yield (Dealer(newHand), newDeck)
+}
+
+object Dealer {
+  def of(deck: GameDeck): (Dealer, GameDeck) = {
+    val (servedCards, newDeck) = deck.serveN(1)
+    (Dealer(Hand(servedCards)), newDeck)
   }
 }
