@@ -1,5 +1,10 @@
 name := "evo-final"
 scalaVersion := "2.13.3"
+scalacOptions ++= Seq(
+  "-deprecation",
+  "-feature",
+  "-Ymacro-annotations",
+)
 
 val catsVersion = "2.2.0"
 val http4sVersion = "0.21.7"
@@ -19,3 +24,5 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-optics" % circeVersion,
   "io.circe" %% "circe-parser" % circeVersion
 )
+
+addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")

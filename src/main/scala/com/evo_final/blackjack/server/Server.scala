@@ -1,11 +1,12 @@
 package com.evo_final.blackjack.server
-
+//websocat "ws://127.0.0.1:9002/blackjack"
 import org.http4s.websocket.WebSocketFrame.Text
-import io.circe
+import io.circe._
 import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.generic.JsonCodec
 import io.circe.generic.extras.auto
+import io.circe.syntax._
 import cats.effect.concurrent.Ref
 import cats.effect.{ExitCode, IO, IOApp}
 import com.evo_final.blackjack.{Amount, PlayerId}
@@ -13,64 +14,80 @@ import com.evo_final.blackjack.game_logic.{Game, PlayerDecision}
 import org.http4s.HttpRoutes
 import org.http4s.dsl.io._
 import org.http4s.implicits._
+import io.circe.Error
 import fs2._
 import fs2.concurrent.Queue
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebSocketFrame
 import cats.implicits._
+import com.evo_final.blackjack.game_logic.PossibleActions.CanPlaceBet
+import com.evo_final.blackjack.server.output.ToClient
+import com.evo_final.blackjack.server.output.ToClient.{Communication, Message}
 
 import scala.concurrent.ExecutionContext
 
 object Server extends IOApp {
 
-  case class Bet(amount: Amount) {}
-
-  case class ServerState(connectedClients: Map[PlayerId, Queue[IO, WebSocketFrame]], game: Game)
   // Let's build a WebSocket server using Http4s.
 
+  case class Session(id: PlayerId, outQueue: Queue[IO, ToClient], stateRef: Ref[IO, ServerState]) {
+    def process(input: Either[Error, FromClient]): IO[Option[ToClient]] = {
+      input match {
+        case Right(request) =>
+          for {
+            state <- stateRef.get
+            (responseIo, newState) = state.process(id, request)
+            response <- responseIo
+            _        <- stateRef.update(_ => newState)
+//            _                    <- newState.updateOthers(id)
+          } yield response
+        case Left(error) => IO(Some(Message(error.getMessage)))
+      }
+
+    }
+  }
+  object Session {
+    def connect(id: PlayerId, outQueue: Queue[IO, ToClient], stateRef: Ref[IO, ServerState]): IO[Session] = {
+      for {
+        state <- stateRef.get
+        outMessage = state.game.roundOpt match {
+          case Some(_) => Message("Round in progress, please wait")
+          case None    => Communication(List(CanPlaceBet), "Place your bet")
+        }
+        _ <- outQueue.enqueue1(outMessage)
+        _ <- stateRef.update(_ => state.newConnection(id, outQueue))
+      } yield Session(id, outQueue, stateRef)
+    }
+  }
   private def webSocketRoute(stateRef: Ref[IO, ServerState]): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      // websocat "ws://localhost:9002/echo"
       case GET -> Root / "blackjack" =>
-//        def pipe: Pipe[IO, WebSocketFrame, WebSocketFrame] = { inputStream =>
-//          inputStream
-//            .collect {
-//              case Text(message, _) => decode[ServerState](message)
-//            }
-//            .map(out => Text(out.asJson.noSpaces))
-//        }
-        // Pipe is a stream transformation function of type `Stream[F, I] => Stream[F, O]`. In this case
-        // `I == O == WebSocketFrame`. So the pipe transforms incoming WebSocket messages from the client to
-        // outgoing WebSocket messages to send to the client.
-        def pipe: Pipe[IO, WebSocketFrame, WebSocketFrame] = ???
-//          _.collect {
-//            case WebSocketFrame.Text(message, _) =>
-//              val request = List(decode[PlayerDecision](message).toOption, decode[Bet](message).toOption)
-//                .collectFirstSome(identity)
-//              val test = for {
-//                serverState <- stateRef.get
-////                currentState <- serverState.get
-//                game = request match {
-//                  case Some(PlayerDecision) => serverState
-//                }
-//              } yield game
-//          }
+        def pipe(
+          session: Session
+        ): Pipe[IO, WebSocketFrame, WebSocketFrame] = { inputStream =>
+          inputStream
+            .collect {
+              case Text(message, _) => decode[FromClient](message)
+            }
+            .evalMap(session.process)
+            .collect { case Some(out) => out }
+            .merge(session.outQueue.dequeue)
+            .map(out => Text(out.asJson.noSpaces))
+        }
+
         for {
-          // Unbounded queue to store WebSocket messages from the client, which are pending to be processed.
-          // For production use bounded queue seems a better choice. Unbounded queue may result in out of
-          // memory error, if the client is sending messages quicker than the server can process them.
-          queue <- Queue.unbounded[IO, WebSocketFrame]
+          clientQueue <- Queue.unbounded[IO, WebSocketFrame]
+          serverQueue <- Queue.unbounded[IO, ToClient]
+          playerId = java.util.UUID.randomUUID
+          session <- Session.connect(playerId, serverQueue, stateRef)
+//
+
           response <- WebSocketBuilder[IO].build(
-            // Sink, where the incoming WebSocket messages from the client are pushed to.
-            receive = queue.enqueue,
-            // Outgoing stream of WebSocket messages to send to the client.
-            send = queue.dequeue.through(pipe),
+            receive = clientQueue.enqueue,
+            send = clientQueue.dequeue.through(pipe(session)),
           )
         } yield response
-
-//      case GET -> Root / "blackjack" / "bet"      => Ok("test")
-//      case GET -> Root / "blackjack" / "decision" => Ok("test")
     }
 
   override def run(args: List[String]): IO[ExitCode] =

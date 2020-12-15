@@ -2,50 +2,90 @@ package com.evo_final.blackjack.game_logic
 
 import cats.implicits._
 import com.evo_final.blackjack._
+import com.evo_final.blackjack.game_logic.PossibleActions.CanPlaceBet
 
 case class Game(
-  connectedClients: Map[PlayerId, Amount],
-  pendingClients: List[PlayerId],
+  connectedClients: Map[PlayerId, Option[Amount]],
+  pendingClients: Set[PlayerId],
   roundOpt: Option[Round]
 ) {
   def startRound(): Game =
-    copy(roundOpt = Some(Round.start(connectedClients.filter { case (_, amount) => amount > 0 })))
-  def endRound(): (Game, Map[PlayerId, Amount]) = {
+    copy(roundOpt = Some(Round.start(connectedClients.collect { case (id, Some(amount)) => id -> amount })))
+
+  def resetRound(): Game = {
+    val crutch: Option[Amount] = None
     roundOpt match {
       case Some(round) =>
-        (
-          Game(
-            connectedClients
-              .map { case (id, _) => id -> BigDecimal(0) }
-              .combine(pendingClients.map(_ -> BigDecimal(0)).toMap),
-            List(),
-            None
-          ),
-          round.calculateWinnings
+        Game(
+          connectedClients
+            .map { case (id, _) => id -> crutch }
+            .combine(pendingClients.map(x => x -> crutch).toMap),
+          Set(),
+          None
         )
-      case None => (this, Map()) // should never happen actually, rethink this method
+
+      case None => this // should never happen actually, rethink this method
     }
   }
 
   def newPlayer(id: PlayerId): Game = {
     roundOpt match {
-      case Some(_) => copy(pendingClients = pendingClients :+ id)
-      case None    => copy(connectedClients = connectedClients + (id -> BigDecimal(0)))
+      case Some(_) => copy(pendingClients = pendingClients + id)
+      case None    => copy(connectedClients = connectedClients + (id -> None))
     }
   }
 
-  def playerBet(id: PlayerId, bet: Amount): Option[Game] =
-    connectedClients.get(id).filter(_ == 0).map(_ => copy(connectedClients + (id -> bet)))
+  def playerBet(id: PlayerId, bet: Amount): Option[Game] = {
+    connectedClients
+      .get(id)
+      .filter(_.isEmpty)
+      .map(_ => {
+        val updGame = copy(connectedClients + (id -> Some(bet)))
+        if (updGame.allBetsPlaced) updGame.startRound() else updGame
+      })
+  }
+  def allBetsPlaced: Boolean =
+    !connectedClients.exists { case (_, amount) => amount.isEmpty }
 
-  def playerDecision(id: PlayerId, decision: PlayerDecision): Option[Game] = {
+  def roundEnded: Boolean =
+    roundOpt match {
+      case Some(round) => round.roundEnded
+      case None        => false
+    }
+
+  def handleDecision(id: PlayerId, decision: PlayerDecision): Option[Game] = {
     for {
-      round            <- roundOpt
-      roundAfterAction <- round.runDecision(id, decision)
-    } yield copy(roundOpt = Some(roundAfterAction))
+      round              <- roundOpt
+      roundAfterDecision <- round.runDecision(id, decision)
+    } yield copy(roundOpt = Some(roundAfterDecision.setNextTurn()))
   }
 
+  def getWinnings: Option[Map[PlayerId, Amount]] = {
+    roundOpt.map(_.calculateWinnings)
+  }
+//  def passTurn: Option[Game] = {
+//    for {
+//      round <- roundOpt
+//      if round.passTurnRequired
+//      roundNextTurn = round.passTurn
+//    } yield copy(roundOpt = Some(roundNextTurn))
+//  }
+  def getPossibleActions(id: PlayerId): Set[PossibleActions] = {
+    connectedClients.get(id) match {
+      case Some(bet) =>
+        bet match {
+          case Some(_) =>
+            roundOpt match {
+              case Some(round) => round.getPossibleActions(id)
+              case None        => Set()
+            }
+          case None => Set(CanPlaceBet)
+        }
+      case None => Set()
+    }
+  }
 }
 
 object Game {
-  def start: Game = Game(Map(), List(), None)
+  def start: Game = Game(Map(), Set(), None)
 }

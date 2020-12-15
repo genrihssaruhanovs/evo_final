@@ -16,4 +16,6 @@ object PlayerState {
 
   case object Insured extends PlayerState
 
+  case object DoubleDowned extends PlayerState
+
 }
