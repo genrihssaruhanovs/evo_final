@@ -8,16 +8,17 @@ import com.evo_final.blackjack.server.output.ToClient.{Message, Result, RoundSta
 import fs2.concurrent.Queue
 import cats.implicits._
 import com.evo_final.blackjack.server.output.{CurrentPlayer, Dealer, OtherPlayer, ToClient}
-
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.DurationInt
-case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], game: Game) {
+
+case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], game: Game)(implicit
+  cs: ContextShift[IO],
+  timer: Timer[IO]
+) {
   def newConnection(id: PlayerId, queue: Queue[IO, ToClient]): ServerState = {
     ServerState(connectedClients + (id -> queue), game.newPlayer(id))
   }
 
   def process(id: PlayerId, fromClient: FromClient): (IO[Option[ToClient]], ServerState) = {
-    val noMessages: Option[ToClient] = None
     fromClient match {
       case Action(decision) =>
         game.handleDecision(id, decision) match {
@@ -29,17 +30,15 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
               val task =
                 newState.updateAll() *>
                   newState.paybackTime() *>
-                  IO(noMessages) *>
-                  resetState.resetGame() *>
-                  IO(noMessages)
+                  resetState.resetGame().as(None)
 
               (task, resetState)
             } else {
-              val task = newState.updateAll() *> IO(noMessages)
+              val task = newState.updateAll().as(None)
               (task, newState)
             }
           case None =>
-            (IO(Some(Message("Decision couldn't be executed"))), this)
+            (IO(Some(Message("Decision couldn't be executed"))), this) //TODO make ADT
         }
 
       case Bet(amount) =>
@@ -48,7 +47,7 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
             val newState = copy(game = updGame)
             val task =
               if (updGame.allBetsPlaced) IO(Some(Message("Bet accepted"))) <* newState.updateAll()
-              else IO(Some(Message("Bet accepted")))
+              else IO(Some(Message("Bet accepted, wait till others place their bet")))
             (task, newState)
           case None => (IO(Some(Message("Bet placement failure"))), this)
         }
@@ -57,9 +56,6 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
   }
 
   def updateAll(): IO[Unit] = {
-
-    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-
     connectedClients
       .map {
         case (id, queue) => queue.enqueue1(roundState(id))
@@ -69,13 +65,10 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
       .void
   }
   def resetGame(): IO[Unit] = {
-    implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
-
-    IO.sleep(2.seconds) *> updateAll()
+    IO.sleep(3.seconds) *> updateAll()
   }
 
   def paybackTime(): IO[Unit] = {
-    implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     game.getWinnings match {
       case Some(winnings) =>
         connectedClients

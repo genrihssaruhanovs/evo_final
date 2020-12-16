@@ -1,12 +1,9 @@
 package com.evo_final.blackjack.server.output
 
 import com.evo_final.blackjack.Amount
-import com.evo_final.blackjack.cards.Card
-import com.evo_final.blackjack.game_logic.{Player, PlayerState, PossibleActions}
-import io.circe.generic.JsonCodec
-import io.circe.generic.auto._
+import com.evo_final.blackjack.game_logic.PossibleActions
 
-@JsonCodec sealed trait ToClient
+sealed trait ToClient
 
 object ToClient {
   case class Communication(possibleActions: List[PossibleActions], text: String) extends ToClient
@@ -16,9 +13,7 @@ object ToClient {
     currentPlayer: CurrentPlayer,
     dealer: Dealer
   ) extends ToClient
-  case class PlayerState(
-    currentPlayer: CurrentPlayer
-  )
+
   case class Result(
     message: String,
     amount: Amount

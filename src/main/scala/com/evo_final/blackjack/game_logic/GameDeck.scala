@@ -28,7 +28,7 @@ case class GameDeck(cards: List[Card]) {
       }
     }
 
-    getServed(n, List(), this)
+    getServed(n, List(), deck = this)
   }
 }
 

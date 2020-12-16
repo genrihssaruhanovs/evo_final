@@ -1,16 +1,13 @@
 package com.evo_final.blackjack.server
 //websocat "ws://127.0.0.1:9002/blackjack"
 import org.http4s.websocket.WebSocketFrame.Text
-import io.circe._
-import io.circe.{Decoder, Encoder}
 import io.circe.parser._
-import io.circe.generic.JsonCodec
-import io.circe.generic.extras.auto
+
 import io.circe.syntax._
 import cats.effect.concurrent.Ref
 import cats.effect.{ExitCode, IO, IOApp}
-import com.evo_final.blackjack.{Amount, PlayerId}
-import com.evo_final.blackjack.game_logic.{Game, PlayerDecision}
+import com.evo_final.blackjack.PlayerId
+import com.evo_final.blackjack.game_logic.Game
 import org.http4s.HttpRoutes
 import org.http4s.dsl.io._
 import org.http4s.implicits._
@@ -20,17 +17,14 @@ import fs2.concurrent.Queue
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebSocketFrame
-import cats.implicits._
+
 import com.evo_final.blackjack.game_logic.PossibleActions.CanPlaceBet
 import com.evo_final.blackjack.server.output.ToClient
 import com.evo_final.blackjack.server.output.ToClient.{Communication, Message}
-
 import scala.concurrent.ExecutionContext
+import com.evo_final.blackjack.server.JsonCodecs._
 
 object Server extends IOApp {
-
-  // Let's build a WebSocket server using Http4s.
-
   case class Session(id: PlayerId, outQueue: Queue[IO, ToClient], stateRef: Ref[IO, ServerState]) {
     def process(input: Either[Error, FromClient]): IO[Option[ToClient]] = {
       input match {
@@ -40,7 +34,6 @@ object Server extends IOApp {
             (responseIo, newState) = state.process(id, request)
             response <- responseIo
             _        <- stateRef.update(_ => newState)
-//            _                    <- newState.updateOthers(id)
           } yield response
         case Left(error) => IO(Some(Message(error.getMessage)))
       }
@@ -62,6 +55,7 @@ object Server extends IOApp {
   }
   private def webSocketRoute(stateRef: Ref[IO, ServerState]): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
+
       case GET -> Root / "blackjack" =>
         def pipe(
           session: Session

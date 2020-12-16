@@ -16,7 +16,6 @@ case class Dealer(hand: Hand) {
 
     val (resultHand, resultDeck) = getCards(hand, deck)
     (Dealer(resultHand), resultDeck)
-
   }
 }
 

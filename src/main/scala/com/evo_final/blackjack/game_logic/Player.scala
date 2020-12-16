@@ -1,7 +1,7 @@
 package com.evo_final.blackjack.game_logic
 
 import com.evo_final.blackjack.cards.Rank.Ace
-import com.evo_final.blackjack.{Amount, PlayerId}
+import com.evo_final.blackjack.Amount
 import com.evo_final.blackjack.game_logic.PlayerDecision._
 import com.evo_final.blackjack.game_logic.PlayerState._
 import com.evo_final.blackjack.game_logic.HandResult.Won
@@ -78,11 +78,6 @@ case class Player(
     } else Set()
 
   }
-  //  def initialServe(deck: GameDeck): (Player, GameDeck) = {
-  //    val (newHand, newDeck) = hand.getServed(2, deck)
-  //    (copy(hand = newHand), newDeck)
-  //  }
-
 }
 
 object Player {

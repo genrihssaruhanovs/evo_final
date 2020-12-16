@@ -13,18 +13,17 @@ case class Game(
     copy(roundOpt = Some(Round.start(connectedClients.collect { case (id, Some(amount)) => id -> amount })))
 
   def resetRound(): Game = {
-    val crutch: Option[Amount] = None
     roundOpt match {
-      case Some(round) =>
+      case Some(_) =>
         Game(
           connectedClients
-            .map { case (id, _) => id -> crutch }
-            .combine(pendingClients.map(x => x -> crutch).toMap),
+            .map[PlayerId, Option[Amount]] { case (id, _) => id -> None }
+            .combine(pendingClients.map(x => x -> None).toMap),
           Set(),
           None
         )
 
-      case None => this // should never happen actually, rethink this method
+      case None => this //TODO
     }
   }
 
@@ -63,13 +62,7 @@ case class Game(
   def getWinnings: Option[Map[PlayerId, Amount]] = {
     roundOpt.map(_.calculateWinnings)
   }
-//  def passTurn: Option[Game] = {
-//    for {
-//      round <- roundOpt
-//      if round.passTurnRequired
-//      roundNextTurn = round.passTurn
-//    } yield copy(roundOpt = Some(roundNextTurn))
-//  }
+
   def getPossibleActions(id: PlayerId): Set[PossibleActions] = {
     connectedClients.get(id) match {
       case Some(bet) =>
