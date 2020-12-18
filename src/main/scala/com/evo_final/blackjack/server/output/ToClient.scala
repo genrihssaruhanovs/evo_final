@@ -16,6 +16,6 @@ object ToClient {
 
   case class Result(
     message: String,
-    amount: Amount
+    amountBack: Amount
   ) extends ToClient
 }

@@ -9,6 +9,7 @@ scalacOptions ++= Seq(
 val catsVersion = "2.2.0"
 val http4sVersion = "0.21.7"
 val circeVersion = "0.13.0"
+val logbackVersion = "1.2.3"
 
 libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-core" % catsVersion,
@@ -22,7 +23,8 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-generic" % circeVersion,
   "io.circe" %% "circe-generic-extras" % circeVersion,
   "io.circe" %% "circe-optics" % circeVersion,
-  "io.circe" %% "circe-parser" % circeVersion
+  "io.circe" %% "circe-parser" % circeVersion,
+  "ch.qos.logback" % "logback-classic" % logbackVersion,
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")

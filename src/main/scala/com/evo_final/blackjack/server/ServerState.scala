@@ -42,14 +42,18 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
         }
 
       case Bet(amount) =>
-        game.playerBet(id, amount) match {
-          case Some(updGame) =>
-            val newState = copy(game = updGame)
-            val task =
-              if (updGame.allBetsPlaced) IO(Some(Message("Bet accepted"))) <* newState.updateAll()
-              else IO(Some(Message("Bet accepted, wait till others place their bet")))
-            (task, newState)
-          case None => (IO(Some(Message("Bet placement failure"))), this)
+        if (amount != 0) {
+          game.playerBet(id, amount) match {
+            case Some(updGame) =>
+              val newState = copy(game = updGame)
+              val task =
+                if (updGame.allBetsPlaced) IO(Some(Message("Bet accepted"))) <* newState.updateAll()
+                else IO(Some(Message("Bet accepted, wait till others place their bet")))
+              (task, newState)
+            case None => (IO(Some(Message("Bet placement failure"))), this)
+          }
+        } else {
+          (IO(Some(Message("Bet cannot be 0"))), this)
         }
       case _ => (IO(Some(Message("Wrong request"))), this)
     }
@@ -65,7 +69,7 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
       .void
   }
   def resetGame(): IO[Unit] = {
-    IO.sleep(3.seconds) *> updateAll()
+    IO.sleep(5.seconds) *> updateAll()
   }
 
   def paybackTime(): IO[Unit] = {
@@ -76,7 +80,8 @@ case class ServerState(connectedClients: Map[PlayerId, Queue[IO, ToClient]], gam
             case (id, queue) =>
               val wonAmount: Amount = winnings.getOrElse(id, 0)
 
-              val message = if (wonAmount == 0) "You lost" else s"You won $wonAmount"
+              val message =
+                (if (wonAmount == 0) "You lost." else s"You won $wonAmount.") + "Starting new round"
               queue.enqueue1(
                 Result(
                   message,

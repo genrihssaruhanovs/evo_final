@@ -1,5 +1,7 @@
 package com.evo_final.blackjack.server
 //websocat "ws://127.0.0.1:9002/blackjack"
+//logback
+//val Logback = “ch.qos.logback” % “logback-classic” % logbackVersion /1.2.3 -- main/resources/logback.xml
 import org.http4s.websocket.WebSocketFrame.Text
 import io.circe.parser._
 

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name = "viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSockets</title>
+</head>
+<body>
+    <h1>Blackjack</h1>
+    <div>
+        <h2>Dealer</h2>
+        <p id="idDealerCards"></p>
+        <p id="idDealerScore"></p>
+    </div>
+    <div>
+        <h2>Others</h2>
+        <div id="idOthers">
+            <table id="excelDataTable" border="1">
+            </table>
+        </div>
+    </div>
+    <div>
+        <h2>You</h2>
+        <div id="idYou"></div>
+        <div>
+            <h3>Current round:</h3>
+            <div id="idRound">
+                <p id="idYourCards"></p>
+                <p id="idYourScore"></p>
+                <p id="idYourBet"></p>
+                <p id="idSurrendered">Surrendered</p>
+                <p id="idDoubleDowned">DoubleDowned</p>
+                <p id="idInsured">Insured</p>
+                <p id="idTurnEnded">Turn Ended</p>
+            </div>
+            <h3>Possible actions:</h3>
+            <div id="idBetSection">
+                <label for="idBet">Bet amount:</label>
+                <input type="text" id="idBet" name="bet">
+                <input type="submit" value="Place Bet" onclick="buttonClickBet()"><br><br>
+            </div>
+            <div id="idActionSection">
+                <input id="idStand" type="submit" value="Stand" onclick="buttonClickAction()">
+                <input id="idHit" type="submit" value="Hit" onclick="buttonClickAction()">
+                <input id="idDoubleDown" type="submit" value="DoubleDown" onclick="buttonClickAction()">
+                <input id="idSurrender" type="submit" value="Surrender" onclick="buttonClickAction()">
+                <input id="idInsure" type="submit" value="Insure" onclick="buttonClickAction()">
+            </div>
+        </div>
+        <h3>Message box</h3>
+        <p id="communication"/>
+    </div>
+</body>
+<script>
+    var aPossibleActions = [];
+    var betJsonTemplate = "{\"Bet\":{\"amount\": \"%value%\"}}";
+    var decisionJsonTemplate = "{\"Action\":{\"decision\": \"%value%\"}}";
+
+    const ws = new WebSocket("ws://127.0.0.1:9002/blackjack");
+
+    function bool2vis(b1) {
+      if(b1)
+         return "initial";
+      else
+       return "none"
+    }
+
+    function buttonClickBet(){
+        var sAmount = document.getElementById('idBet').value;
+        document.getElementById('idBet').value = "";
+        var oBetJSON = betJsonTemplate.replace("%value%", sAmount);
+        ws.send(oBetJSON);
+    }
+
+    function buttonClickAction(){
+        var sClickedButtonId = event.srcElement.id;
+        var oButtonValue = document.getElementById(sClickedButtonId);
+        var sDecision = oButtonValue.value;
+        var sActionJSON = decisionJsonTemplate.replace("%value%", sDecision);
+        ws.send(sActionJSON);
+    }
+
+    ws.addEventListener('open', (event) => {
+        document.getElementById("idSurrendered").style.display = bool2vis(false);
+        document.getElementById("idInsured").style.display = bool2vis(false);
+        document.getElementById("idDoubleDowned").style.display = bool2vis(false);
+        document.getElementById("idTurnEnded").style.display = bool2vis(false);
+    });
+
+    ws.addEventListener("message", ({ data }) => {
+        var object = JSON.parse(data);
+        if(object.hasOwnProperty('Communication')){
+            aPossibleActions = object.Communication.possibleActions;
+            document.getElementById("communication").innerHTML = object.Communication.text;
+        }else if(object.hasOwnProperty('Message')){
+            document.getElementById("communication").innerHTML = object.Message.text;
+        }else if(object.hasOwnProperty('RoundState')){
+            aPossibleActions = object.RoundState.currentPlayer.possibleActions;
+
+            var sYourCards = (object.RoundState.currentPlayer.cards.length != 0 ) ? "Cards: " + object.RoundState.currentPlayer.cards.join(' ') : "";
+            var sYourScore = (object.RoundState.currentPlayer.score != 0 ) ? "Score: " + object.RoundState.currentPlayer.score : "";
+            var sYourBet = (object.RoundState.currentPlayer.bet != 0 ) ? "Bet: " + object.RoundState.currentPlayer.bet: "";
+
+
+            document.getElementById("idYourCards").innerHTML = sYourCards;
+            document.getElementById("idYourScore").innerHTML = sYourScore;
+            document.getElementById("idYourBet").innerHTML = sYourBet;
+
+            document.getElementById("idSurrendered").style.display = bool2vis(object.RoundState.currentPlayer.states.includes("Surrendered"));
+            document.getElementById("idInsured").style.display =bool2vis(object.RoundState.currentPlayer.states.includes("Insured"));
+            document.getElementById("idDoubleDowned").style.display = bool2vis(object.RoundState.currentPlayer.states.includes("DoubleDowned"));
+            document.getElementById("idTurnEnded").style.display = bool2vis(object.RoundState.currentPlayer.states.includes("TurnDone"));
+
+
+            var sDealerCards = (object.RoundState.dealer.cards.length != 0 ) ? "Cards: " + object.RoundState.dealer.cards.join(' ') : "";
+            var sDealerScore = (object.RoundState.dealer.score != 0 ) ? "Score: " + object.RoundState.dealer.score : "";
+            document.getElementById("idDealerCards").innerHTML = sDealerCards;
+            document.getElementById("idDealerScore").innerHTML = sDealerScore;
+
+
+            tableFromJson(object.RoundState.otherPlayers);
+
+            document.getElementById("communication").innerHTML = "";
+        }else if(object.hasOwnProperty('Result')){
+            document.getElementById("communication").innerHTML = object.Result.message;
+        }
+
+        document.getElementById("idBetSection").style.display = bool2vis(aPossibleActions.includes("CanPlaceBet"));
+        document.getElementById("idStand").style.display = bool2vis(aPossibleActions.includes("CanStand"));
+        document.getElementById("idHit").style.display = bool2vis(aPossibleActions.includes("CanHit"));
+        document.getElementById("idDoubleDown").style.display = bool2vis(aPossibleActions.includes("CanDoubleDown"));
+        document.getElementById("idSurrender").style.display = bool2vis(aPossibleActions.includes("CanSurrender"));
+        document.getElementById("idInsure").style.display = bool2vis(aPossibleActions.includes("CanInsure"));
+
+        console.log(object);
+    })
+
+
+function tableFromJson(jsonTable) {
+
+        // Create a table.
+        var table = document.createElement("table");
+        if(jsonTable.length > 0){
+            // Create table header row using the extracted headers above.
+            var tr = table.insertRow(-1);                   // table row.
+            var th = document.createElement("th");      // table header.
+            th.innerHTML = "Cards";
+            tr.appendChild(th);
+
+            th = document.createElement("th");
+            th.innerHTML = "Score";
+            tr.appendChild(th);
+
+            th = document.createElement("th");
+            th.innerHTML = "Status";
+            tr.appendChild(th);
+
+            // add json data to the table as rows.
+            for (var i = 0; i < jsonTable.length; i++) {
+                tr = table.insertRow(-1);
+
+                var tabCell = tr.insertCell(-1);
+                tabCell.innerHTML = jsonTable[i].cards.join(' ');
+
+                tabCell = tr.insertCell(-1);
+                tabCell.innerHTML = jsonTable[i].score;
+
+                tabCell = tr.insertCell(-1);
+                if(jsonTable[i].state == 'TurnDone') tabCell.innerHTML = "X"
+                else if (jsonTable[i].state == 'TurnNow') tabCell.innerHTML = "!"
+                else tabCell.innerHTML = " "
+            }
+        }
+        // Now, add the newly created table with json data, to a container.
+        var divShowData = document.getElementById('excelDataTable');
+        divShowData.innerHTML = "";
+        divShowData.appendChild(table);
+
+  }
+
+</script>
+</html>
