@@ -2,7 +2,8 @@ package com.evo_final.blackjack.game_logic
 
 import cats.implicits._
 import com.evo_final.blackjack._
-import com.evo_final.blackjack.game_logic.PossibleActions.CanPlaceBet
+import com.evo_final.blackjack.game_logic.adt.PossibleActions.CanPlaceBet
+import com.evo_final.blackjack.game_logic.adt.{PlayerDecision, PossibleActions}
 
 case class Game(
   connectedClients: Map[PlayerId, Option[Amount]],
@@ -10,9 +11,9 @@ case class Game(
   roundOpt: Option[Round]
 ) {
   def startRound(): Game =
-    copy(roundOpt = Some(Round.start(connectedClients.collect { case (id, Some(amount)) => id -> amount })))
+    copy(roundOpt = Some(Round.start(connectedClients.collect { case (id, Some(_)) => id }.toList)))
 
-  def resetRound(): Game = {
+  private def resetRound(): Game = {
     roundOpt match {
       case Some(_) =>
         Game(
@@ -52,15 +53,29 @@ case class Game(
       case None        => false
     }
 
-  def handleDecision(id: PlayerId, decision: PlayerDecision): Option[Game] = {
-    for {
+  def handleDecision(id: PlayerId, decision: PlayerDecision): (Option[Game], Option[Game]) = {
+    val gameAfterDecision = for {
       round              <- roundOpt
       roundAfterDecision <- round.runDecision(id, decision)
-    } yield copy(roundOpt = Some(roundAfterDecision.setNextTurn()))
+    } yield copy(roundOpt = Some(roundAfterDecision))
+
+    val resetGame = gameAfterDecision.filter(_.roundEnded).map(_.resetRound())
+    (gameAfterDecision, resetGame)
   }
 
-  def getWinnings: Option[Map[PlayerId, Amount]] = {
-    roundOpt.map(_.calculateWinnings)
+  def getWinningAmounts: Option[Map[PlayerId, Amount]] = {
+    roundOpt.map { round =>
+      round.calculateWinningCoefficients
+        .map {
+          case (id, coeff) =>
+            for {
+              betOpt <- connectedClients.get(id)
+              bet    <- betOpt
+            } yield id -> bet * coeff
+        }
+        .collect { case Some(value) => value }
+        .toMap
+    }
   }
 
   def getPossibleActions(id: PlayerId): Set[PossibleActions] = {

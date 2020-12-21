@@ -2,8 +2,9 @@ package com.evo_final.blackjack.server.output
 
 import com.evo_final.blackjack.PlayerId
 import com.evo_final.blackjack.cards.Card
-import com.evo_final.blackjack.game_logic.PlayerState.{TurnDone, TurnNow}
-import com.evo_final.blackjack.game_logic.{Player, PlayerState}
+import com.evo_final.blackjack.game_logic.adt.PlayerState.{TurnDone, TurnNow}
+import com.evo_final.blackjack.game_logic.Player
+import com.evo_final.blackjack.game_logic.adt.PlayerState
 
 case class OtherPlayer(
   cards: List[Card],

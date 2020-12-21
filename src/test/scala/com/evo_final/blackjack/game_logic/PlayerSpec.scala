@@ -3,8 +3,8 @@ package com.evo_final.blackjack.game_logic
 import com.evo_final.blackjack.cards.Card
 import com.evo_final.blackjack.cards.Rank._
 import com.evo_final.blackjack.cards.Suit._
-import com.evo_final.blackjack.game_logic.PlayerDecision._
-import com.evo_final.blackjack.game_logic.PlayerState._
+import com.evo_final.blackjack.game_logic.adt.PlayerDecision._
+import com.evo_final.blackjack.game_logic.adt.PlayerState._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -25,39 +25,39 @@ class PlayerSpec extends AnyFreeSpec with Matchers {
 
     "evaluate hand correctly vs non-blackjack dealer" in {
       val fakeDealer = Dealer(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))))
-      val player1 = Player(Hand(List(Card(Ace, Hearts), Card(Queen, Hearts))), Set(), 500)
-      val player2 = Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts))), Set(), 500)
+      val player1 = Player(Hand(List(Card(Ace, Hearts), Card(Queen, Hearts))), Set())
+      val player2 = Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts))), Set())
       val player3 =
-        Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts), Card(Seven, Hearts))), Set(), 500)
-      val player4 = Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))), Set(), 500)
+        Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts), Card(Seven, Hearts))), Set())
+      val player4 = Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))), Set())
       val player5 =
-        Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds), Card(Ten, Hearts))), Set(), 500)
+        Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds), Card(Ten, Hearts))), Set())
 
-      player1.evaluate(fakeDealer.hand) shouldEqual 1250
+      player1.evaluate(fakeDealer.hand) shouldEqual 2.5
       player2.evaluate(fakeDealer.hand) shouldEqual 0
-      player3.evaluate(fakeDealer.hand) shouldEqual 1000
-      player4.evaluate(fakeDealer.hand) shouldEqual 500
+      player3.evaluate(fakeDealer.hand) shouldEqual 2
+      player4.evaluate(fakeDealer.hand) shouldEqual 1
       player5.evaluate(fakeDealer.hand) shouldEqual 0
     }
 
     "evaluate hand correctly vs blackjack dealer" in {
       val fakeDealer = Dealer(Hand(List(Card(Ten, Diamonds), Card(Ace, Diamonds))))
-      val player1 = Player(Hand(List(Card(Ace, Hearts), Card(Queen, Hearts))), Set(), 500)
-      val player2 = Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts))), Set(), 500)
+      val player1 = Player(Hand(List(Card(Ace, Hearts), Card(Queen, Hearts))), Set())
+      val player2 = Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts))), Set())
       val player3 =
-        Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts), Card(Seven, Hearts))), Set(), 500)
-      val player4 = Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))), Set(), 500)
+        Player(Hand(List(Card(Ace, Hearts), Card(Three, Hearts), Card(Seven, Hearts))), Set())
+      val player4 = Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds))), Set())
       val player5 =
-        Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds), Card(Ten, Hearts))), Set(), 500)
+        Player(Hand(List(Card(Ten, Diamonds), Card(Nine, Diamonds), Card(Ten, Hearts))), Set())
 
-      player1.evaluate(fakeDealer.hand) shouldEqual 500
+      player1.evaluate(fakeDealer.hand) shouldEqual 1
       player2.evaluate(fakeDealer.hand) shouldEqual 0
       player3.evaluate(fakeDealer.hand) shouldEqual 0
       player4.evaluate(fakeDealer.hand) shouldEqual 0
       player5.evaluate(fakeDealer.hand) shouldEqual 0
     }
     "Execute different actions" - {
-      val player = Player(Hand(List(Card(Five, Hearts), Card(Four, Hearts))), Set(TurnNow), 500)
+      val player = Player(Hand(List(Card(Five, Hearts), Card(Four, Hearts))), Set(TurnNow))
 
       "Execute stand action" in {
 

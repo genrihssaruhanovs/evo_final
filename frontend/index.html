@@ -22,6 +22,11 @@
     <div>
         <h2>You</h2>
         <div id="idYou"></div>
+        <p id="idBalance">Balance: 0</p>
+        <div id="idTopUpSection">
+            <input type="text" id="idTopUp" name="bet">
+            <input type="submit" value="Top Up" onclick="buttonClickTopUp()"><br><br>
+        </div>
         <div>
             <h3>Current round:</h3>
             <div id="idRound">
@@ -55,6 +60,7 @@
     var aPossibleActions = [];
     var betJsonTemplate = "{\"Bet\":{\"amount\": \"%value%\"}}";
     var decisionJsonTemplate = "{\"Action\":{\"decision\": \"%value%\"}}";
+    var topUpJsonTemplate = "{\"TopUp\":{\"amount\": \"%value%\"}}";
 
     const ws = new WebSocket("ws://127.0.0.1:9002/blackjack");
 
@@ -69,6 +75,13 @@
         var sAmount = document.getElementById('idBet').value;
         document.getElementById('idBet').value = "";
         var oBetJSON = betJsonTemplate.replace("%value%", sAmount);
+        ws.send(oBetJSON);
+    }
+
+    function buttonClickTopUp(){
+        var sAmount = document.getElementById('idTopUp').value;
+        document.getElementById('idTopUp').value = "";
+        var oBetJSON = topUpJsonTemplate.replace("%value%", sAmount);
         ws.send(oBetJSON);
     }
 
@@ -94,6 +107,9 @@
             document.getElementById("communication").innerHTML = object.Communication.text;
         }else if(object.hasOwnProperty('Message')){
             document.getElementById("communication").innerHTML = object.Message.text;
+        }else if(object.hasOwnProperty('Balance')){
+            document.getElementById("idBalance").innerHTML = "Balance: " + object.Balance.balance;
+            document.getElementById("communication").innerHTML = object.Balance.message;
         }else if(object.hasOwnProperty('RoundState')){
             aPossibleActions = object.RoundState.currentPlayer.possibleActions;
 
@@ -121,8 +137,8 @@
             tableFromJson(object.RoundState.otherPlayers);
 
             document.getElementById("communication").innerHTML = "";
-        }else if(object.hasOwnProperty('Result')){
-            document.getElementById("communication").innerHTML = object.Result.message;
+<!--        }else if(object.hasOwnProperty('Result')){-->
+<!--            document.getElementById("communication").innerHTML = object.Result.message;-->
         }
 
         document.getElementById("idBetSection").style.display = bool2vis(aPossibleActions.includes("CanPlaceBet"));

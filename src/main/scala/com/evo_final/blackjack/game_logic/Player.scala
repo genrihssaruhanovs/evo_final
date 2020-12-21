@@ -2,15 +2,18 @@ package com.evo_final.blackjack.game_logic
 
 import com.evo_final.blackjack.cards.Rank.Ace
 import com.evo_final.blackjack.Amount
-import com.evo_final.blackjack.game_logic.PlayerDecision._
-import com.evo_final.blackjack.game_logic.PlayerState._
-import com.evo_final.blackjack.game_logic.HandResult.Won
-import com.evo_final.blackjack.game_logic.PossibleActions._
+import com.evo_final.blackjack.game_logic.adt.PlayerDecision._
+import com.evo_final.blackjack.game_logic.adt.PlayerState._
+import com.evo_final.blackjack.game_logic.adt.HandResult.Won
+import com.evo_final.blackjack.game_logic.adt.PossibleActions._
+import com.evo_final.blackjack.game_logic.adt.{PlayerDecision, PlayerState, PossibleActions}
+
+import scala.language.implicitConversions
 
 case class Player(
   hand: Hand,
-  states: Set[PlayerState],
-  bet: Amount,
+  states: Set[PlayerState]
+//  bet: Amount,
 ) {
 
   def evaluate(dealerHand: Hand): Amount = {
@@ -23,7 +26,8 @@ case class Player(
 
     val handResult = hand.handResult(dealerHand)
 
-    bet * (
+//    bet *
+    (
       handResult.coefficient +
         blackJackCoefficient +
         (states.contains(Insured) && dealerHand.isBlackJack) +
@@ -52,7 +56,7 @@ case class Player(
     }
   }
 
-  def statesEndTurn: Set[PlayerState] = states + TurnDone - TurnNow
+  private def statesEndTurn: Set[PlayerState] = states + TurnDone - TurnNow
 
   def getPossibleActions(dealer: Dealer): Set[PossibleActions] = {
     def getInitialActions(states: Set[PlayerState]): Set[PossibleActions] = {
@@ -81,8 +85,8 @@ case class Player(
 }
 
 object Player {
-  def of(deck: GameDeck, bet: Amount): (Player, GameDeck) = {
+  def of(deck: GameDeck): (Player, GameDeck) = {
     val (servedCards, newDeck) = deck.serveN(2)
-    (Player(Hand(servedCards), Set(), bet), newDeck)
+    (Player(Hand(servedCards), Set()), newDeck)
   }
 }

@@ -1,7 +1,7 @@
 package com.evo_final.blackjack.server
 
 import com.evo_final.blackjack.cards.Card
-import com.evo_final.blackjack.game_logic.{PlayerDecision, PlayerState, PossibleActions}
+import com.evo_final.blackjack.game_logic.adt.{PlayerDecision, PlayerState, PossibleActions}
 import com.evo_final.blackjack.server.FromClient._
 import com.evo_final.blackjack.server.output.ToClient._
 import com.evo_final.blackjack.server.output._
@@ -17,10 +17,10 @@ object JsonCodecs {
   implicit val dealerEncoder: Encoder[Dealer] = deriveEncoder[Dealer]
   implicit val currentPlayerEncoder: Encoder[CurrentPlayer] = deriveEncoder[CurrentPlayer]
   implicit val otherPlayerEncoder: Encoder[OtherPlayer] = deriveEncoder[OtherPlayer]
-  implicit val messageEncoder: Encoder[Message] = deriveEncoder[Message]
+  implicit val messageEncoder: Encoder[MessageToClient] = message => Json.fromString(message.toString)
   implicit val communicationEncoder: Encoder[Communication] = deriveEncoder[Communication]
   implicit val roundStateEncoder: Encoder[RoundState] = deriveEncoder[RoundState]
-  implicit val resultDecoder: Encoder[Result] = deriveEncoder[Result]
+  implicit val resultDecoder: Encoder[Balance] = deriveEncoder[Balance]
   implicit val toClientDecoder: Encoder[ToClient] = deriveEncoder[ToClient]
 
   //decoders

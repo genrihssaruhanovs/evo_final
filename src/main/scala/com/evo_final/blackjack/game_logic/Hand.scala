@@ -2,7 +2,8 @@ package com.evo_final.blackjack.game_logic
 
 import com.evo_final.blackjack.cards.Rank.Ace
 import com.evo_final.blackjack.cards.Card
-import com.evo_final.blackjack.game_logic.HandResult.{Lost, Tie, Won}
+import com.evo_final.blackjack.game_logic.adt.HandResult._
+import com.evo_final.blackjack.game_logic.adt.HandResult
 
 import scala.annotation.tailrec
 

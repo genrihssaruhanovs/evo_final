@@ -1,4 +1,4 @@
-package com.evo_final.blackjack.game_logic
+package com.evo_final.blackjack.game_logic.adt
 
 sealed trait PossibleActions
 

@@ -1,10 +1,8 @@
 package com.evo_final.blackjack.server
 //websocat "ws://127.0.0.1:9002/blackjack"
-//logback
-//val Logback = “ch.qos.logback” % “logback-classic” % logbackVersion /1.2.3 -- main/resources/logback.xml
+
 import org.http4s.websocket.WebSocketFrame.Text
 import io.circe.parser._
-
 import io.circe.syntax._
 import cats.effect.concurrent.Ref
 import cats.effect.{ExitCode, IO, IOApp}
@@ -19,12 +17,13 @@ import fs2.concurrent.Queue
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebSocketFrame
-
-import com.evo_final.blackjack.game_logic.PossibleActions.CanPlaceBet
+import com.evo_final.blackjack.game_logic.adt.PossibleActions.CanPlaceBet
 import com.evo_final.blackjack.server.output.ToClient
 import com.evo_final.blackjack.server.output.ToClient.{Communication, Message}
+
 import scala.concurrent.ExecutionContext
 import com.evo_final.blackjack.server.JsonCodecs._
+import com.evo_final.blackjack.server.output.MessageToClient.{RequestFailure, RoundInProgress}
 
 object Server extends IOApp {
   case class Session(id: PlayerId, outQueue: Queue[IO, ToClient], stateRef: Ref[IO, ServerState]) {
@@ -37,9 +36,15 @@ object Server extends IOApp {
             response <- responseIo
             _        <- stateRef.update(_ => newState)
           } yield response
-        case Left(error) => IO(Some(Message(error.getMessage)))
+        case Left(error) => IO(Some(Message(RequestFailure)))
       }
 
+    }
+    def disconnect(): IO[Unit] = {
+      for {
+        state <- stateRef.get
+        _     <- stateRef.update(_ => state.endConnection(id))
+      } yield ()
     }
   }
   object Session {
@@ -47,7 +52,7 @@ object Server extends IOApp {
       for {
         state <- stateRef.get
         outMessage = state.game.roundOpt match {
-          case Some(_) => Message("Round in progress, please wait")
+          case Some(_) => Message(RoundInProgress)
           case None    => Communication(List(CanPlaceBet), "Place your bet")
         }
         _ <- outQueue.enqueue1(outMessage)
@@ -55,9 +60,9 @@ object Server extends IOApp {
       } yield Session(id, outQueue, stateRef)
     }
   }
+
   private def webSocketRoute(stateRef: Ref[IO, ServerState]): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-
       case GET -> Root / "blackjack" =>
         def pipe(
           session: Session
@@ -82,13 +87,27 @@ object Server extends IOApp {
           response <- WebSocketBuilder[IO].build(
             receive = clientQueue.enqueue,
             send = clientQueue.dequeue.through(pipe(session)),
+            onClose = session.disconnect()
           )
         } yield response
     }
 
+//  def timeoutHandler(serverStateRef: Ref[IO, ServerState]): IO[Unit] = {
+//    val ioOut = for {
+//      serverState    <- serverStateRef.get
+//      serverStateUpd <- serverState.handleTimeouts()
+//      _              <- serverStateRef.update(_ => serverStateUpd)
+//    } yield ()
+//
+//    IO.sleep(10.seconds) *> ioOut
+//  }
+
   override def run(args: List[String]): IO[ExitCode] =
     for {
-      serverStateRef <- Ref.of[IO, ServerState](ServerState(Map(), Game.start))
+      serverStateRef <- Ref.of[IO, ServerState](ServerState(Map(), Game.start, Set()))
+//      _              <- Stream.eval(timeoutHandler(serverStateRef)).compile.drain
+//      _ <- Stream.eval(IO.sleep(5.seconds) *> timeoutHandler(serverStateRef)).repeat.compile.drain
+//      _ <- timeoutHandler(serverStateRef).start
       _ <-
         BlazeServerBuilder[IO](ExecutionContext.global)
           .bindHttp(port = 9002, host = "localhost")
