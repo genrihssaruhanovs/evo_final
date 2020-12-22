@@ -5,6 +5,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import cats.effect.concurrent.Ref
 import cats.effect.{ExitCode, IO, IOApp}
+import cats.implicits.catsSyntaxFlatMapOps
 import com.evo_final.blackjack.PlayerId
 import com.evo_final.blackjack.game_logic.Game
 import org.http4s.HttpRoutes
@@ -23,6 +24,8 @@ import com.evo_final.blackjack.server.output.ToClient.{Communication, Message}
 import scala.concurrent.ExecutionContext
 import com.evo_final.blackjack.server.JsonCodecs._
 import com.evo_final.blackjack.server.output.MessageToClient.{RequestFailure, RoundInProgress}
+
+import scala.concurrent.duration.DurationInt
 
 object Server extends IOApp {
   case class Session(id: PlayerId, outQueue: Queue[IO, ToClient], stateRef: Ref[IO, ServerState]) {
@@ -91,9 +94,21 @@ object Server extends IOApp {
         } yield response
     }
 
+  def timeoutHandler(serverStateRef: Ref[IO, ServerState]): IO[Unit] = {
+    val timeoutIo = for {
+      serverState <- serverStateRef.get
+      (timeout, serverStateUpd) = serverState.handleTimeouts()
+      _ <- timeout
+      _ <- serverStateRef.update(_ => serverStateUpd)
+    } yield ()
+
+    IO.sleep(2.seconds) *> timeoutIo
+  }
+
   override def run(args: List[String]): IO[ExitCode] =
     for {
-      serverStateRef <- Ref.of[IO, ServerState](ServerState(Map(), Game.start, Set()))
+      serverStateRef <- Ref.of[IO, ServerState](ServerState(Map(), Game.start, Set(), None))
+      _              <- timeoutHandler(serverStateRef).foreverM.start
       _ <-
         BlazeServerBuilder[IO](ExecutionContext.global)
           .bindHttp(port = 9002, host = "localhost")

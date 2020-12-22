@@ -10,8 +10,17 @@ case class Game(
   pendingClients: Set[PlayerId],
   roundOpt: Option[Round]
 ) {
-  def startRound(): Game =
-    copy(roundOpt = Some(Round.start(connectedClients.collect { case (id, Some(_)) => id }.toList)))
+  def startRound(): Game = {
+    copy(
+      pendingClients = connectedClients.collect {
+        case (id, bet) if bet.isEmpty => id
+      }.toSet,
+      connectedClients = connectedClients.filter {
+        case (_, bet) => bet.isDefined
+      },
+      roundOpt = Some(Round.start(connectedClients.collect { case (id, Some(_)) => id }.toList))
+    )
+  }
 
   private def resetRound(): Game = {
     roundOpt match {

@@ -1,5 +1,7 @@
 package com.evo_final.blackjack.server
 
+import java.time.LocalTime
+
 import cats.effect.{ContextShift, IO, Timer}
 import com.evo_final.blackjack.{Amount, PlayerId}
 import com.evo_final.blackjack.game_logic.Game
@@ -18,7 +20,8 @@ case class Client(queue: Queue[IO, ToClient], balance: Amount)
 case class ServerState(
   connectedClients: Map[PlayerId, Client],
   game: Game,
-  pendingDisconnection: Set[PlayerId]
+  pendingDisconnection: Set[PlayerId],
+  timeoutAtOpt: Option[LocalTime]
 )(implicit
   cs: ContextShift[IO],
   timer: Timer[IO]
@@ -55,13 +58,18 @@ case class ServerState(
         gameAfterDecisionOpt match {
           case Some(gameAfterDecision) =>
             val afterDecisionState =
-              copy(game = gameAfterDecision, connectedClients = connectedClients + (id -> client))
+              copy(
+                game = gameAfterDecision,
+                connectedClients = connectedClients + (id -> client),
+                timeoutAtOpt = Some(LocalTime.now().plusSeconds(10))
+              )
             gameAfterResetOpt match {
               case Some(gameAfterReset) =>
                 val resetState = ServerState(
                   afterDecisionState.updateBalance(),
-                  gameAfterReset,
-                  Set()
+                  removeDisconnectedFromGame(gameAfterReset),
+                  Set(),
+                  None
                 )
                 (
                   afterDecisionState.updateAllClients() *>
@@ -82,6 +90,11 @@ case class ServerState(
       case None    => (messageOut(InternalFailure), this)
     }
   }
+  def removeDisconnectedFromGame(game: Game): Game = {
+    game.copy(connectedClients = game.connectedClients.filter {
+      case (id, _) => !pendingDisconnection.contains(id)
+    })
+  }
 
   def processBet(id: PlayerId, amount: Amount): (IO[Option[ToClient]], ServerState) = {
 
@@ -93,8 +106,17 @@ case class ServerState(
           if (updatedBalanceClient.balance >= 0) {
             game.playerBet(id, amount) match {
               case Some(updGame) =>
-                val newState =
-                  copy(game = updGame, connectedClients = connectedClients + (id -> updatedBalanceClient))
+                val timeout =
+                  if (updGame.allBetsPlaced) Some(LocalTime.now().plusSeconds(10))
+                  else if (timeoutAtOpt.isEmpty) Some(LocalTime.now().plusSeconds(15))
+                  else timeoutAtOpt
+                val newState = {
+                  copy(
+                    game = updGame,
+                    connectedClients = connectedClients + (id -> updatedBalanceClient),
+                    timeoutAtOpt = timeout
+                  )
+                }
                 val task =
                   if (updGame.allBetsPlaced) {
                     successOut(Balance(updatedBalanceClient.balance, BetAccepted)) <* newState
@@ -190,7 +212,11 @@ case class ServerState(
   def endConnection(id: PlayerId): ServerState = {
     game.roundOpt match {
       case Some(round) if round.players.contains(id) => copy(pendingDisconnection = pendingDisconnection + id)
-      case _                                         => copy(connectedClients = connectedClients - id)
+      case _ =>
+        copy(
+          connectedClients = connectedClients - id,
+          game = game.copy(connectedClients = game.connectedClients - id)
+        )
     }
   }
 
@@ -220,5 +246,39 @@ case class ServerState(
       case Some(v) => v
       case None    => noRound()
     }
+  }
+
+  def handleTimeouts(): (IO[Option[ToClient]], ServerState) = {
+    import com.evo_final.blackjack.game_logic.adt.PlayerDecision.Stand
+    import com.evo_final.blackjack.game_logic.adt.PlayerState.TurnNow
+    timeoutAtOpt match {
+      case Some(timeoutAt) =>
+        if (timeoutAt.compareTo(LocalTime.now()) < 0) {
+          game.roundOpt match {
+            case Some(round) =>
+              round.players.find { case (_, player) => player.states.contains(TurnNow) } match {
+                case Some((id, _)) => processDecision(id, Stand)
+                case None          => (IO(None), this)
+              }
+            case None =>
+              val updatedState =
+                copy(game = game.startRound(), timeoutAtOpt = Some(LocalTime.now().plusSeconds(10)))
+              (updatedState.updateAllClients() *> updatedState.timeoutNotification().as(None), updatedState)
+          }
+        } else (IO(None), this)
+      case None => (IO(None), this)
+    }
+  }
+
+  def timeoutNotification(): IO[Unit] = {
+
+    connectedClients
+      .collect {
+        case (id, client) if game.pendingClients.contains(id) =>
+          client.queue.enqueue1(Message(BetTimeout))
+      }
+      .toVector
+      .parSequence
+      .void
   }
 }

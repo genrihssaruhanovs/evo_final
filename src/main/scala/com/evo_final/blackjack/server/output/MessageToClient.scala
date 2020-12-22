@@ -45,4 +45,7 @@ object MessageToClient {
   final case object MessageUnit extends MessageToClient {
     override def toString: String = ""
   }
+  final case object BetTimeout extends MessageToClient {
+    override def toString: String = "Bet step timeout, please wait till the round ends"
+  }
 }
