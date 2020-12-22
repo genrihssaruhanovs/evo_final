@@ -101,7 +101,9 @@ case class ServerState(
                       .updateAllClients()
 
                   } else
-                    successOut(Balance(updatedBalanceClient.balance, BetAcceptedWait))
+                    successOut(Balance(updatedBalanceClient.balance, BetAcceptedWait)) <* newState
+                      .updateSingleClient(id)
+
                 (task, newState)
               case None => (messageOut(BetFailure), this)
             }
@@ -156,6 +158,14 @@ case class ServerState(
       .parSequence
       .void
   }
+
+  def updateSingleClient(id: PlayerId): IO[Unit] = {
+    connectedClients.get(id) match {
+      case Some(client) => client.queue.enqueue1(roundState(id))
+      case None         => IO(())
+    }
+  }
+
   def resetGame(): IO[Unit] = {
     IO.sleep(5.seconds) *> updateAllClients()
   }
@@ -183,71 +193,14 @@ case class ServerState(
       case _                                         => copy(connectedClients = connectedClients - id)
     }
   }
-//  def paybackTime(): IO[Unit] = {
-//    game.getWinningAmounts match {
-//      case Some(winnings) =>
-//        connectedClients
-//          .map {
-//            case (id, client) =>
-//              val wonAmount: Amount = winnings.getOrElse(id, 0)
-//
-//              val message =
-//                (if (wonAmount == 0) "You lost." else s"You won $wonAmount.") + "Starting new round"
-//              client.queue.enqueue1(
-//                Balance(
-//                  message,
-//                  wonAmount
-//                )
-//              )
-//          }
-//          .toVector
-//          .parSequence
-//          .void
-//      case None => IO.unit
-//    }
-//  }
-//  def getCurrentPlayer(id: PlayerId): Option[CurrentPlayer] =
-//    for {
-//      betOpt <- game.connectedClients.get(id)
-//      bet    <- betOpt
-//      round  <- game.roundOpt
-//      player <- round.players.get(id)
-//    } yield CurrentPlayer.of(player, round.dealer, bet)
-
-//  def handleTimeouts(): IO[ServerState] = {
-//    if (lastActionAt + TimeUnit.SECONDS.toMillis(5) > System.currentTimeMillis()) {
-//      val gameUpdOpt = game.roundOpt match {
-//        case Some(round) =>
-//          for {
-//            (id, _)      <- round.players.find { case (_, player) => player.states.contains(TurnNow) }
-//            finishedMove <- game.handleDecision(id, Stand)
-//            //        } round.players.find { case (_, player) => player.states.contains(TurnNow) } match {
-//            //          case Some((id, _)) => game.handleDecision(id, Stand)
-//            //          case None          => game
-//          } yield finishedMove
-//
-//        case None => Some(game.startRound())
-//      }
-//      gameUpdOpt match {
-//        case Some(gameUpd) =>
-//          val updatedState = copy(game = gameUpd, lastActionAt = System.currentTimeMillis())
-//          updatedState.updateAll() *> IO(updatedState)
-//        case None => IO(this)
-//      }
-//    } else IO(this)
-//  }
 
   def roundState(currentId: PlayerId): ToClient = {
     def noRound(): RoundState = {
-      val otherPlayers = game.connectedClients.collect {
-        case (id, _) if id != currentId => OtherPlayer(List(), 0, None)
-      }.toList
-
       val possibleActions = game.getPossibleActions(currentId)
       val currentPlayer = CurrentPlayer(List(), 0, 0, Set(), possibleActions)
 
       RoundState(
-        otherPlayers,
+        List(),
         currentPlayer,
         Dealer(List(), 0)
       )

@@ -24,7 +24,7 @@ case class Game(
           None
         )
 
-      case None => this //TODO
+      case None => this
     }
   }
 

@@ -13,26 +13,22 @@ import scala.language.implicitConversions
 case class Player(
   hand: Hand,
   states: Set[PlayerState]
-//  bet: Amount,
 ) {
 
   def evaluate(dealerHand: Hand): Amount = {
     implicit def bool2int(b: Boolean): BigDecimal = if (b) 1 else 0
 
-    val blackJackCoefficient: Amount =
-      if (this.hand.isBlackJack == dealerHand.isBlackJack) 0
-      else if (this.hand.isBlackJack) 0.5
-      else -1
+    if (states.contains(Surrendered))
+      0.5
+    else {
 
-    val handResult = hand.handResult(dealerHand)
+      val handResult = hand.handResult(dealerHand)
 
-//    bet *
-    (
       handResult.coefficient +
-        blackJackCoefficient +
-        (states.contains(Insured) && dealerHand.isBlackJack) +
-        (states.contains(DoubleDowned) && handResult == Won)
-    ).max(0)
+        (this.hand.isBlackJack && handResult == Won) * 0.5 +
+        (states.contains(Insured) && dealerHand.isBlackJack) * 1.5 +
+        (states.contains(DoubleDowned) && handResult == Won) * 2
+    }
   }
 
   def makeDecision(decision: PlayerDecision, deck: GameDeck): (Player, GameDeck) = {
@@ -50,9 +46,9 @@ case class Player(
 
       case Surrender => (copy(states = statesEndTurn + Surrendered), deck)
 
-      case Split => ???
+      case Split => (this, deck) //TODO
 
-      case Insurance => (copy(states = statesEndTurn + Insured), deck)
+      case Insurance => (copy(states = states + Insured), deck)
     }
   }
 
@@ -66,7 +62,7 @@ case class Player(
       def canSurrender: Set[PossibleActions] =
         if (!states.contains(Surrendered)) Set(CanSurrender) else Set()
       def canInsure: Set[PossibleActions] =
-        if (!states.contains(Surrendered) && dealer.hand.cards.head.rank == Ace) Set(CanSurrender)
+        if (!states.contains(Insured) && dealer.hand.cards.head.rank == Ace) Set(CanInsure)
         else Set()
       def canSplit: Set[PossibleActions] =
         if (hand.cards.head.rank == hand.cards.last.rank) Set(CanSplit) else Set()

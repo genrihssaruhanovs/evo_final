@@ -32,8 +32,11 @@ case class Hand(cards: List[Card]) {
   def handResult(hand: Hand): HandResult = {
     if (!this.isBust && !hand.isBust)
       Integer.compare(this.score, hand.score) match {
-        case 1  => Won
-        case 0  => Tie
+        case 1 => Won
+        case 0 =>
+          if (this.isBlackJack == hand.isBlackJack) Tie
+          else if (this.isBlackJack) Won
+          else Lost
         case -1 => Lost
       }
     else if (this.isBust && hand.isBust) Tie

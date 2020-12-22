@@ -1,5 +1,4 @@
 package com.evo_final.blackjack.server
-//websocat "ws://127.0.0.1:9002/blackjack"
 
 import org.http4s.websocket.WebSocketFrame.Text
 import io.circe.parser._
@@ -36,7 +35,7 @@ object Server extends IOApp {
             response <- responseIo
             _        <- stateRef.update(_ => newState)
           } yield response
-        case Left(error) => IO(Some(Message(RequestFailure)))
+        case Left(_) => IO(Some(Message(RequestFailure)))
       }
 
     }
@@ -92,22 +91,9 @@ object Server extends IOApp {
         } yield response
     }
 
-//  def timeoutHandler(serverStateRef: Ref[IO, ServerState]): IO[Unit] = {
-//    val ioOut = for {
-//      serverState    <- serverStateRef.get
-//      serverStateUpd <- serverState.handleTimeouts()
-//      _              <- serverStateRef.update(_ => serverStateUpd)
-//    } yield ()
-//
-//    IO.sleep(10.seconds) *> ioOut
-//  }
-
   override def run(args: List[String]): IO[ExitCode] =
     for {
       serverStateRef <- Ref.of[IO, ServerState](ServerState(Map(), Game.start, Set()))
-//      _              <- Stream.eval(timeoutHandler(serverStateRef)).compile.drain
-//      _ <- Stream.eval(IO.sleep(5.seconds) *> timeoutHandler(serverStateRef)).repeat.compile.drain
-//      _ <- timeoutHandler(serverStateRef).start
       _ <-
         BlazeServerBuilder[IO](ExecutionContext.global)
           .bindHttp(port = 9002, host = "localhost")

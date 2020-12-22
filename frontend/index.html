@@ -37,6 +37,7 @@
                 <p id="idDoubleDowned">DoubleDowned</p>
                 <p id="idInsured">Insured</p>
                 <p id="idTurnEnded">Turn Ended</p>
+                <p id="idSplitted">Splitted</p>
             </div>
             <h3>Possible actions:</h3>
             <div id="idBetSection">
@@ -49,11 +50,12 @@
                 <input id="idHit" type="submit" value="Hit" onclick="buttonClickAction()">
                 <input id="idDoubleDown" type="submit" value="DoubleDown" onclick="buttonClickAction()">
                 <input id="idSurrender" type="submit" value="Surrender" onclick="buttonClickAction()">
-                <input id="idInsure" type="submit" value="Insure" onclick="buttonClickAction()">
+                <input id="idInsurance" type="submit" value="Insurance" onclick="buttonClickAction()">
+                <input id="idSplit" type="submit" value="Split" onclick="buttonClickAction()">
             </div>
         </div>
         <h3>Message box</h3>
-        <p id="communication"/>
+        <p id="communication"></p>
     </div>
 </body>
 <script>
@@ -98,6 +100,7 @@
         document.getElementById("idInsured").style.display = bool2vis(false);
         document.getElementById("idDoubleDowned").style.display = bool2vis(false);
         document.getElementById("idTurnEnded").style.display = bool2vis(false);
+        document.getElementById("idSplitted").style.display = bool2vis(false);
     });
 
     ws.addEventListener("message", ({ data }) => {
@@ -135,10 +138,6 @@
 
 
             tableFromJson(object.RoundState.otherPlayers);
-
-            document.getElementById("communication").innerHTML = "";
-<!--        }else if(object.hasOwnProperty('Result')){-->
-<!--            document.getElementById("communication").innerHTML = object.Result.message;-->
         }
 
         document.getElementById("idBetSection").style.display = bool2vis(aPossibleActions.includes("CanPlaceBet"));
@@ -146,7 +145,8 @@
         document.getElementById("idHit").style.display = bool2vis(aPossibleActions.includes("CanHit"));
         document.getElementById("idDoubleDown").style.display = bool2vis(aPossibleActions.includes("CanDoubleDown"));
         document.getElementById("idSurrender").style.display = bool2vis(aPossibleActions.includes("CanSurrender"));
-        document.getElementById("idInsure").style.display = bool2vis(aPossibleActions.includes("CanInsure"));
+        document.getElementById("idInsurance").style.display = bool2vis(aPossibleActions.includes("CanInsure"));
+document.getElementById("idSplit").style.display = bool2vis(aPossibleActions.includes("CanSplit"));
 
         console.log(object);
     })

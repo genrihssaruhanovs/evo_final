@@ -5,6 +5,7 @@ import com.evo_final.blackjack.cards.Rank._
 import com.evo_final.blackjack.cards.Suit._
 import com.evo_final.blackjack.game_logic.adt.PlayerDecision._
 import com.evo_final.blackjack.game_logic.adt.PlayerState._
+import com.evo_final.blackjack.game_logic.adt.PossibleActions._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -112,6 +113,8 @@ class PlayerSpec extends AnyFreeSpec with Matchers {
         surrenderedPlayer.states should not contain TurnNow
         surrenderedPlayer.states should contain(Surrendered)
         surrenderedPlayer.hand.score shouldEqual player.hand.score
+
+        surrenderedPlayer.evaluate(Hand(List(Card(Ace, Spades)))) shouldEqual 0.5
       }
 
       "Execute insure action" in {
@@ -121,11 +124,21 @@ class PlayerSpec extends AnyFreeSpec with Matchers {
           insured
 
         insuredDeck.cards shouldEqual fakeDeck.cards
-        insuredPlayer.states should contain(TurnDone)
-        insuredPlayer.states should not contain TurnNow
+        insuredPlayer.states should not contain TurnDone
+        insuredPlayer.states should contain(TurnNow)
         insuredPlayer.states should contain(Insured)
         insuredPlayer.hand.score shouldEqual player.hand.score
       }
+    }
+    "Return correct possible actions" in {
+      val fakeDealer = Dealer(Hand(List(Card(Ace, Diamonds))))
+      val player1 = Player(Hand(List(Card(Ten, Hearts), Card(Ten, Hearts))), Set(TurnNow))
+      val possibleActions = player1.getPossibleActions(fakeDealer)
+      possibleActions should contain(CanInsure)
+      possibleActions should contain(CanSplit)
+      possibleActions should contain(CanHit)
+      possibleActions should contain(CanStand)
+      possibleActions should contain(CanSurrender)
     }
   }
 }
