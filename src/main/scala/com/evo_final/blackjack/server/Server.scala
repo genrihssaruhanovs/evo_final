@@ -63,6 +63,17 @@ object Server extends IOApp {
     }
   }
 
+  def timeoutHandler(serverStateRef: Ref[IO, ServerState]): IO[Unit] = {
+    val timeoutIo = for {
+      serverState <- serverStateRef.get
+      (timeout, serverStateUpd) = serverState.handleTimeouts()
+      _ <- timeout
+      _ <- serverStateRef.update(_ => serverStateUpd)
+    } yield ()
+
+    IO.sleep(2.seconds) *> timeoutIo
+  }
+
   private def webSocketRoute(stateRef: Ref[IO, ServerState]): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case GET -> Root / "blackjack" =>
@@ -93,17 +104,6 @@ object Server extends IOApp {
           )
         } yield response
     }
-
-  def timeoutHandler(serverStateRef: Ref[IO, ServerState]): IO[Unit] = {
-    val timeoutIo = for {
-      serverState <- serverStateRef.get
-      (timeout, serverStateUpd) = serverState.handleTimeouts()
-      _ <- timeout
-      _ <- serverStateRef.update(_ => serverStateUpd)
-    } yield ()
-
-    IO.sleep(2.seconds) *> timeoutIo
-  }
 
   override def run(args: List[String]): IO[ExitCode] =
     for {

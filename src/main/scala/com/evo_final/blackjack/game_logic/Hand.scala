@@ -39,7 +39,6 @@ case class Hand(cards: List[Card]) {
           else Lost
         case -1 => Lost
       }
-    else if (this.isBust && hand.isBust) Tie
     else if (hand.isBust) Won
     else Lost
   }
